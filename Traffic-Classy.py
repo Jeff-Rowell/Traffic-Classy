@@ -5,6 +5,7 @@ import logging
 import numpy as np
 from ipaddress import IPv4Address
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 
 class TrafficClassyHelper(object):
@@ -140,16 +141,29 @@ class TrafficClassyHelper(object):
 
         return X_norm, y
 
+    def plot_data(self, X):
+        plt.title("Source IPv4 Address vs. Destination IPv4 Address")
+        plt.xlabel("Source IPv4 Address")
+        plt.ylabel("Destination IPv4 Address")
+        for row in X:
+            plt.plot(row[0], row[1], 'o')
+        plt.show()
+
+        plt.title("Source Port vs. Destination Port")
+        plt.xlabel("Source Port")
+        plt.ylabel("Destination Port")
+        for row in X:
+            plt.plot(row[2], row[3], 'o')
+        plt.show()
+
 
 class TrafficClassyCNN(object):
 
     def __init__(self):
         helper = TrafficClassyHelper("good_pcaps", "bad_pcaps")
         good_packets, bad_packets = helper.read_input()
-        X, y = helper.build_input_data(good_data=good_packets, bad_data=bad_packets)
-
-        for row in X:
-            print(row)
+        self.X, self.y = helper.build_input_data(good_data=good_packets, bad_data=bad_packets)
+        helper.plot_data(X=self.X)
 
 
 cnn = TrafficClassyCNN()
