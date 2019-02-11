@@ -1,8 +1,10 @@
 from scapy.all import rdpcap
 import os
+import sys
 import logging
 import numpy as np
 from ipaddress import IPv4Address
+import tensorflow as tf
 
 
 class TrafficClassyHelper(object):
@@ -64,19 +66,21 @@ class TrafficClassyHelper(object):
     def build_input_data(self, good_data, bad_data):
         '''
         Builds the dataset X from a list of good PCAP files and bad PCAP files and returns the input data and
-        corresponding labels ready for data splitting.
+        corresponding labels ready for data splitting. Returns the normalized input data (in the range [-1, 1]),
+        and their respective labels.
 
         :param good_data: A list of benign packets.
         :param bad_data:  A list of nefarious packets.
         :return: X - The input matrix to the network consiting of column labels of the source IP, destination IP,
-                     source port, and destination port in each row.
+                     source port, and destination port in each row. Data is normalized in the range [-1, 1].
                      Has shape: (len(good_data) + len(bad_data), 4)
 
                  y - The labels, 0 or 1, for each row in the input matrix.
                      Has shape:  (len(good_data) + len(bad_data), 1)
         '''
 
-        X = np.zeros(shape=(len(good_data)+len(bad_data), 4), dtype=np.int64)
+        X = np.zeros(shape=(len(good_data)+len(bad_data), 4), dtype=np.int)
+        X_norm = np.zeros(shape=(len(good_data)+len(bad_data), 4), dtype=np.float)
         good_labels = [0 for i in range(len(good_data))]
         bad_labels = [1 for i in range(len(bad_data))]
         y = good_labels + bad_labels
@@ -96,9 +100,56 @@ class TrafficClassyHelper(object):
                 X[row, 3] = np.int64(packet.dport)
                 row += 1
 
-        return X, y
+        npinfo = np.iinfo(np.int)
+        min_ip = npinfo.max
+        max_ip = npinfo.min
+        min_port = npinfo.max
+        max_port = npinfo.min
+
+        # find min and max values for the IPv4 addresses and the port numbers
+        for row in X:
+            if row[0] < min_ip:
+                min_ip = row[0]
+            if row[1] < min_ip:
+                min_ip = row[1]
+            if row[0] > max_ip:
+                max_ip = row[0]
+            if row[1] > max_ip:
+                max_ip = row[1]
+
+            if row[2] < min_port:
+                min_port = row[2]
+            if row[3] < min_port:
+                min_port = row[3]
+            if row[2] > max_port:
+                max_port = row[2]
+            if row[3] > max_port:
+                max_port = row[3]
+
+        ip_diff = max_ip - min_ip
+        port_diff = max_port - min_port
+        row_index = 0
+
+        # Normalize the input data between [-1, 1]
+        for row in X:
+            X_norm[row_index, 0] = 2 * ((row[0] - min_ip) / ip_diff) - 1
+            X_norm[row_index, 1] = 2 * ((row[1] - min_ip) / ip_diff) - 1
+            X_norm[row_index, 2] = 2 * ((row[2] - min_port) / port_diff) - 1
+            X_norm[row_index, 3] = 2 * ((row[3] - min_port) / port_diff) - 1
+            row_index += 1
+
+        return X_norm, y
 
 
-helper = TrafficClassyHelper("good_pcaps", "bad_pcaps")
-good_packets, bad_packets = helper.read_input()
-X, y = helper.build_input_data(good_data=good_packets, bad_data=bad_packets)
+class TrafficClassyCNN(object):
+
+    def __init__(self):
+        helper = TrafficClassyHelper("good_pcaps", "bad_pcaps")
+        good_packets, bad_packets = helper.read_input()
+        X, y = helper.build_input_data(good_data=good_packets, bad_data=bad_packets)
+
+        for row in X:
+            print(row)
+
+
+cnn = TrafficClassyCNN()
