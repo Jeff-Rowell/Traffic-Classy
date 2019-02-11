@@ -1,0 +1,106 @@
+from scapy.all import rdpcap
+import os
+import logging
+import numpy as np
+from ipaddress import IPv4Address
+
+
+class TrafficClassyHelper(object):
+
+    def __init__(self, good_path, bad_path):
+        self.good_path = good_path
+        self.bad_path = bad_path
+
+    def read_input(self):
+        '''
+        Helper function to read in the PCAP and csv files and store the packets into lists for training.
+
+        :return: good_packet_list - A list of the benign packets.
+                 bad_packet_list  - A list of the "nefarious" packets. Really the entire PCAP is not all nefarious
+                                    packets, but it contains at least one nefarious packet somewhere in the capture.
+                                    These will be exported to a .csv file for manual labelling and read back in later.
+        '''
+
+        good_packet_list = []
+        bad_packet_list = []
+        print("[*] Reading PCAP files from \"" + self.good_path + "\" directory....")
+        try:
+            for good_filename in os.listdir(self.good_path):
+                print("[*] Processing packets from file: " + "\"" + str(good_filename) + "\"")
+                data = rdpcap(self.good_path + "/" + good_filename)
+                sessions = data.sessions()
+
+                for session in sessions:
+                    for packet in sessions[session]:
+                        if packet.haslayer("TCP") and packet.haslayer("IP"):
+                            good_packet_list.append(packet)
+        except FileNotFoundError as e:
+            logging.basicConfig(filename='errors.log', level=logging.DEBUG)
+            logging.exception(e)
+            print("[-] File not found error.")
+
+            exit(1)
+
+        print("\n[*] Reading PCAP files from \"" + self.bad_path + "\" directory....")
+        try:
+            for bad_filename in os.listdir(self.bad_path):
+                print("[*] Processing packets from file: \"" + str(bad_filename) + "\"")
+                data = rdpcap(self.bad_path + "/" + bad_filename)
+                sessions = data.sessions()
+
+                for session in sessions:
+                    for packet in sessions[session]:
+                        if packet.haslayer("TCP") and packet.haslayer("IP"):
+                            bad_packet_list.append(packet)
+        except FileNotFoundError as e:
+            logging.basicConfig(filename='errors.log', level=logging.DEBUG)
+            logging.exception(e)
+            print("[-] File not found error.")
+            exit(1)
+
+        print("[+] Read in " + str(len(good_packet_list)) + " good packets and " +
+              str(len(bad_packet_list)) + " bad packets containing TCP and IP layers")
+
+        return good_packet_list, bad_packet_list
+
+    def build_input_data(self, good_data, bad_data):
+        '''
+        Builds the dataset X from a list of good PCAP files and bad PCAP files and returns the input data and
+        corresponding labels ready for data splitting.
+
+        :param good_data: A list of benign packets.
+        :param bad_data:  A list of nefarious packets.
+        :return: X - The input matrix to the network consiting of column labels of the source IP, destination IP,
+                     source port, and destination port in each row.
+                     Has shape: (len(good_data) + len(bad_data), 4)
+
+                 y - The labels, 0 or 1, for each row in the input matrix.
+                     Has shape:  (len(good_data) + len(bad_data), 1)
+        '''
+
+        X = np.zeros(shape=(len(good_data)+len(bad_data), 4), dtype=np.int64)
+        good_labels = [0 for i in range(len(good_data))]
+        bad_labels = [1 for i in range(len(bad_data))]
+        y = good_labels + bad_labels
+
+        row = 0
+        for packet in good_data:
+                X[row, 0] = np.int64(IPv4Address(packet.getlayer("IP").src))
+                X[row, 1] = np.int64(IPv4Address(packet.getlayer("IP").dst))
+                X[row, 2] = np.int64(packet.sport)
+                X[row, 3] = np.int64(packet.dport)
+                row += 1
+
+        for packet in bad_data:
+                X[row, 0] = np.int64(IPv4Address(packet.getlayer("IP").src))
+                X[row, 1] = np.int64(IPv4Address(packet.getlayer("IP").dst))
+                X[row, 2] = np.int64(packet.sport)
+                X[row, 3] = np.int64(packet.dport)
+                row += 1
+
+        return X, y
+
+
+helper = TrafficClassyHelper("good_pcaps", "bad_pcaps")
+good_packets, bad_packets = helper.read_input()
+X, y = helper.build_input_data(good_data=good_packets, bad_data=bad_packets)
