@@ -13,12 +13,10 @@ class TrafficClassyHelper(object):
 
     def read_input(self):
         '''
-        Helper function to read in the PCAP and csv files and store the packets into lists for training.
+        Helper function to read in the PCAP files and store the packets into lists.
 
         :return: good_packet_list - A list of the benign packets.
-                 bad_packet_list  - A list of the "nefarious" packets. Really the entire PCAP is not all nefarious
-                                    packets, but it contains at least one nefarious packet somewhere in the capture.
-                                    These will be exported to a .csv file for manual labelling and read back in later.
+                 bad_packet_list  - A list of the "nefarious" packets.
         '''
 
         good_packet_list = []
