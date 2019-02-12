@@ -1,6 +1,5 @@
 from scapy.all import rdpcap
 import os
-import sys
 import logging
 import numpy as np
 from ipaddress import IPv4Address
@@ -80,7 +79,7 @@ class TrafficClassyHelper(object):
                      Has shape:  (len(good_data) + len(bad_data), 1)
         '''
 
-        X = np.zeros(shape=(len(good_data)+len(bad_data), 4), dtype=np.int)
+        X = np.zeros(shape=(len(good_data)+len(bad_data), 4), dtype=np.int64)
         X_norm = np.zeros(shape=(len(good_data)+len(bad_data), 4), dtype=np.float)
         good_labels = [0 for i in range(len(good_data))]
         bad_labels = [1 for i in range(len(bad_data))]
@@ -141,7 +140,18 @@ class TrafficClassyHelper(object):
 
         return X_norm, y
 
-    def plot_data(self, X):
+    @staticmethod
+    def plot_data(X):
+        '''
+        Plots the input data from the PCAP files. Generates two different plots; one contains the
+        source IP vs. destination IP and the other contains the source port vs. the destination
+        port. Does not require an instance of the TrafficClassyHelper class to use this method.
+
+        :param X: The normalized PCAP data.
+        :return: A plot of the source IPs vs. destination IPs, and another
+                 plot of the source ports vs. destination ports.
+        '''
+
         plt.title("Source IPv4 Address vs. Destination IPv4 Address")
         plt.xlabel("Source IPv4 Address")
         plt.ylabel("Destination IPv4 Address")
@@ -163,7 +173,92 @@ class TrafficClassyCNN(object):
         helper = TrafficClassyHelper("good_pcaps", "bad_pcaps")
         good_packets, bad_packets = helper.read_input()
         self.X, self.y = helper.build_input_data(good_data=good_packets, bad_data=bad_packets)
-        helper.plot_data(X=self.X)
+        batch_gen = self.slice_generator(shuffle=True, random_seed=123)
+
+        '''
+        TODO:
+        -----
+        Here we cannot be calling the build_conv_layer method for all of the generated batches,
+        and this is not the proper place to start building the network. This will need to be 
+        refactored at some point...
+        '''
+        for i, (batch_x, batch_y) in enumerate(batch_gen):
+            if i == 1:
+                break
+            self.X = tf.convert_to_tensor(batch_x, dtype=tf.float32, name="tf_x")
+            self.y = tf.convert_to_tensor(batch_y, dtype=tf.int32, name="tf_y")
+
+            # Reshape the input into a rank 4 tensor ==> [batchsize x 256 x 4 x 1]
+            self.X = tf.reshape(self.X, shape=[-1, 256, 4, 1], name='X_rashaped')
+            self.build_conv_layer(name="test", kernel_size=(6, 2), n_output_size=32)
+
+    def slice_generator(self, slice_size=256, shuffle=False, random_seed=None):
+        '''
+        Returns a generator of a tuple for a match of samples in slice_size chunks. Optionally can randomize
+        the data as well.
+
+        :param slice_size: The desired size of each slice or batch of data to be returned.
+        :param shuffle: True if the data is to be randomized, false otherwise.
+        :param random_seed: The random seed to be used for randomizing the data.
+        :return: A generator with a tuple for a match of samples, (i.e. a 'slice_size' chunk of
+                 the data X and their respective labels y).
+        '''
+
+        indices = np.arange(len(self.y))
+        temp_X = np.c_[self.X, self.y]
+
+        if shuffle:
+            rng = np.random.RandomState(random_seed)
+            rng.shuffle(indices)
+            temp_X = temp_X[indices]
+
+        X = temp_X[:, :-1]
+        y = temp_X[:, -1:]
+
+        for i in range(0, X.shape[0], slice_size):
+            if len(X[i:i+slice_size, :]) != slice_size:
+                diff = slice_size - len(X[i:i+slice_size, :])
+                filler = np.zeros(shape=(diff, 4), dtype=np.float)
+                X = np.vstack((X, filler))
+                filler = np.zeros(shape=(diff, 1), dtype=np.int32)
+                y = np.vstack((y, filler))
+            yield (X[i:i+slice_size, :], y[i:i+slice_size])
+
+    def build_conv_layer(self, name, kernel_size, n_output_size, padding_mode="SAME", strides=(2, 2, 2, 2)):
+        '''
+        A simple wrapper function that aids in building convolutional layers of the network. Returns the
+        constructed convolution layer with the weights (filter) and biases have been initialized, as well as
+        the convolutional layer itself with its ReLU activation function.
+
+        :param name: The variable name that defines the scope of the convolutional subpart.
+        :param kernel_size: The size of the filter.
+        :param n_output_size: The number of convolutional filters.
+        :param padding_mode: The padding mode; either "SAME", "VALID", or "FULL" padding modes can be used.
+        :param strides: The amount to 'slide' the convolutional filter in each direction of the tensor.
+        :return: The fully constructed convolutional layer.
+        '''
+
+        print("\n[*] Building convolutional layers....")
+        with tf.variable_scope(name):
+            input_shape = self.X.get_shape().as_list()
+            n_input_size = input_shape[-1]
+            weights_shape = list(kernel_size) + [n_input_size, n_output_size]
+            weights = tf.get_variable(name="_weights", shape=weights_shape)
+            print("[*] " + str(weights))
+
+            biases = tf.get_variable(name="_biases", initializer=tf.zeros(shape=[n_output_size]))
+            print("[*] " + str(biases))
+
+            conv = tf.nn.conv2d(input=self.X, filter=weights, strides=strides, padding=padding_mode)
+            print("[*] " + str(conv))
+
+            conv = tf.nn.bias_add(conv, biases, name="net_pre_activation")
+            print("[*] " + str(conv))
+
+            conv = tf.nn.relu(conv, name="activation")
+            print("[*] " + str(conv) + "\n[+] Got convolutional layers built")
+
+            return conv
 
 
 cnn = TrafficClassyCNN()
