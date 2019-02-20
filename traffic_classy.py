@@ -245,7 +245,7 @@ class TrafficClassyCNN(object):
         helper = TrafficClassyHelper("good_pcaps", "bad_pcaps")
         good_packets, bad_packets = helper.read_input()
         self.X, self.y = helper.build_input_data(good_data=good_packets, bad_data=bad_packets)
-        helper.plot_data(self.X)
+        # helper.plot_data(self.X)
         self.validate = validate
 
         # 80-20 train-test split
@@ -482,9 +482,9 @@ if __name__ == "__main__":
 
     with tf.Session(graph=g) as sess:
         # Write graph to Tensorboard for visualization. This is accessed by running: tensorboard --logdir=<filename>
-        writer = tf.summary.FileWriter("./Files/tf_graph", sess.graph)
+        # writer = tf.summary.FileWriter("./Files/tf_graph", sess.graph)
         cnn.train(sess=sess, random_seed=123)
         preds = cnn.predict(sess=sess, return_proba=False)
         print("\n[+] Test Accuracy: %.3f%%" % (100 * np.sum(preds == cnn.y_test) / len(cnn.y_test)))
-        writer.close()
+        # writer.close()
 del g
