@@ -32,9 +32,10 @@ always positive then the gradients will always all be either positive or negatig
 As such, the popular Adam Optimizer is used, which was derived from the concepts of the RMSProp and AdaGrad optimizers.
 The activation function used for the CNN is a Leaky ReLU. Since the data is normalized in [-1, 1] I did not want to 
 use the basic ReLU since it saturates negative numbers (the corresponding Y-Value of negative inputs are always 0
-thus causing the gradients to be 0). In addition to the non saturating benefit of Leaky ReLU it is also very efficient 
-and in general converges faster than the sigmoid and hyperbolic tangent functions. Finally a linear activation is used
+thus causing the gradients to be 0). In addition to the non saturating benefit of Leaky ReLU, it is also very efficient 
+and in general converges faster than the sigmoid and hyperbolic tangent functions. Finally, a linear activation is used
 for the fully connected layer at the end of the CNN using softmax cross entropy with logits. Once the first model was
 fully constructed the following shows the resulting TensorBoard and the complete architecture for the first prototype.
 
-![tensor_board_graph1](https://user-images.githubusercontent.com/32188816/53281372-6f581e00-36e4-11e9-85cb-b51b2c750d98.png)
+![tensor_board_graph_cropped](https://user-images.githubusercontent.com/32188816/53288657-410c2a00-3748-11e9-945e-6861e8dadd08.png)
+
