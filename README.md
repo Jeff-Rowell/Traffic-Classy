@@ -39,3 +39,7 @@ fully constructed the following shows the resulting TensorBoard and the complete
 
 ![tensor_board_graph_cropped](https://user-images.githubusercontent.com/32188816/53288657-410c2a00-3748-11e9-945e-6861e8dadd08.png)
 
+CNNs are feature extraction engines by nature, meaning that we can give it many features and it will extract the meaningful
+features and then feed those into the MLP at the end of the model. For the second prototype, I decided to give it some features from the PCAP files and see how that effected the performance of the model. The features that I added are the packet length, SEQ number, ACK numbers, window size, and the source and destination MAC addresses. These are all stored in their own columns and normalized in the range [-1, 1] using their respective minimum and maximum values. The hope with adding the new features is that it will give the model more context of what average network traffic looks like opposed to nefarious network traffic, and if the features are meaningless the CNN will weed those out before they reach the first fully connected layer (i.e. the input to the MLP at the end of the CNN) through the CNN's filtering and max pooling operations. The second model's prototype is shown below.
+
+![cnn-prototype2](https://user-images.githubusercontent.com/32188816/53323106-788aeb80-389a-11e9-9dc0-8c33946a7a8d.jpg)
